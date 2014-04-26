@@ -15,7 +15,24 @@ function [ edges ] = RPS( vertices )
 
     % list of edges
     E = calculate_edges( vertices, N);
+
+    %%%% PLOT %%%%
     
+    figure;
+    
+    % 
+    plot( vertices(1,1), vertices(1,2), 'go', 'MarkerFaceColor',[0,1,0] );
+    hold on;
+    
+    % Plot the edges
+    for i=1:size(E,1)
+        plot([vertices( E(i,1), 1); vertices( E(i,2), 1)],...
+             [vertices( E(i,1), 2); vertices( E(i,2), 2)]);
+        hold on;
+    end
+    
+    %%%% %%%%
+   
     % index of the next edge to be inserted
     edges_idx = 1;
     
@@ -36,26 +53,68 @@ function [ edges ] = RPS( vertices )
 
         % sorted list of edges that intersects the horizontal line
         % emanating from v
-        S = intersects_line( v, vertices, E )
+        [S, E_dst] = intersects_line( v, vertices, E );
         
         % evaluate each vertex
         for j=1:N-1
-                        
-            vi = subset(A(i),:)
             
-            if is_visible(v, vi)
-                % add index of v and vi to the visibility graph
-                edges(edges_idx) = [i, j+i];
+            % TODO: hacer esto más simple
+            
+            % define the number of the vertex
+            if A(j) < i
+                vertex_nr = A(j);
+            else
+                vertex_nr = A(j) + i;
             end
             
-            %TODO: agregar los dos if
-%             if 
-%             end
-%             
-%             if
-%             end
+            sprintf('vertex # %d',(vertex_nr - 1))
+            
+            vi = subset(A(j),:);
+            
+            % check the visibility only if S is not empty
+            if ( ~isempty( S) )
+            
+                % test whether the vertex is visible
+                if is_visible(v, vi, S, E, vertices, E_dst)
+                    % add index of v and vi to the visibility graph
+
+                    disp('visible!')
+
+                    % add index to the visibility graph
+                    edges(edges_idx,:) = [i, vertex_nr];
+                    
+                    edges_idx = edges_idx + 1;
+                end
+                
+            end
+            
+            % determine the edges indexes where vi is the start edge
+            start_edge = find( E(:,1) == vertex_nr )
+            
+            % determine the edges indexes where vi is the end edge
+            end_edge = find( E(:,2) == vertex_nr )
+            
+            % if vi is in the begining of an edge that is not in S
+            if ~isempty( start_edge)
+                % insert the edge in S
+                [S, E_dst] = insert_edge(v, vi, start_edge, E_dst, S, vertices);
+            end
+            
+            % if vi is in the end of an edge in S
+            if ~isempty( end_edge)
+                % delete the edge from S
+                [S, E_dst] = delete_edge(end_edge, E, E_dst, S);
+            end
+
         end
-        
+                
+    end
+    
+    for n=1:size(edges,1)
+        plot([vertices( edges(n,1), 1); vertices( edges(n,2), 1)],...
+             [vertices( edges(n,1), 2); vertices( edges(n,2), 2)],...
+             '-r');
+        hold on;
     end
     
 end
@@ -95,7 +154,7 @@ function [ E ] = calculate_edges( vertices, N )
         edge_idx = edge_idx + 1;
         
     end
-
+    
 end
 
 
@@ -129,7 +188,7 @@ function [ A ] = calculate_alpha( v, vertices )
     
 end
 
-function [ S ] = intersects_line( v, vertices, E )
+function [ S, sorted_E_dst ] = intersects_line( v, vertices, E )
 %INTERSECTS_LINE Select the edges that intersects the horizontal half-line
 %emanating from v
 %
@@ -156,17 +215,26 @@ function [ S ] = intersects_line( v, vertices, E )
         
         % define whether the lines intersects or not
         if intersect
-            % add edge index to the list
-            S(s_idx) = i;
-            % assign the distance
-            E_dst(s_idx) = dst;
-            s_idx = s_idx + 1;
+            
+            % determine if the lines are different segments of the same
+            % line. If this is the case, the edge is not occluding any
+            % line, so it is not included on the S list
+            if abs( line_v - line ) > 0.00001
+                % add edge index to the list
+                S(s_idx) = i;
+                % assign the distance
+                E_dst(s_idx) = dst;
+                s_idx = s_idx + 1;
+            end
+      
         end
         
     end
 
     % sort the elements of E_dst and return the indexes
     [sorted_E_dst, sorted_idx] = sort(E_dst(:),'ascend');
+    
+    sorted_E_dst = sorted_E_dst';
     
     % sort S according to the sorted indexes
     S = S(sorted_idx');
@@ -234,55 +302,107 @@ function [hmg] = homogeneous_coordinates( line )
     hmg = [a, b, c];
 end
 
-function [ visible ] = is_visible( v, vi )
+function [ visible ] = is_visible(v, vi, S, E, vertices, E_dst)
 %IS_VISIBLE Summary of this function goes here
 %   Detailed explanation goes here
 
+    % distance from v to vi
+    dst = norm((v(1:2) - vi(1:2)),2);
+    
+    % number of edges in S
+    N = size(S,1);
+    
+    % index of S
+    S_idx = 1;
+    
+    % initialise the visible variable
+    visible = true;
+    
+    % defines the line that goes from v to the evaluated vertex, vi
+    line_v_vi = [v(1) v(2) vi(1) vi(2)];
+    
+    % determine if the line v_vi intersects with any edge that is closer to
+    % the candidate vertex
+    while ( ( dst > E_dst(S_idx) ) && ( S_idx <= N ) )
+        
+        E_idx = S(S_idx)
+        
+        line_e = [vertices( E(E_idx,1), 1:2),  vertices( E(E_idx,2), 1:2)];
+        
+        [ intersect , ~] = is_intersected(line_v_vi, line_e);
+        
+        if( intersect )
+            visible = false;
+            break;
+        end
+        
+        S_idx = S_idx + 1;
+        
+    end
 
 end
 
-% function [ intersect ] = is_intersected(line_1, line_2)
-% %IS_INTERSECTED Determines whether two lines intersects or not
-% %
-% %   - line_1: vector of size 1 x 4, in the way [x1 y1 x2 y2], where x1 and
-% %     y1 is the initial point of the line and x2 y2 the end point
-% %   - line_2: vector of size 1 x 4, in the way [x1 y1 x2 y2], where x1 and
-% %     y1 is the initial point of the line and x2 y2 the end point
-% 
-%     % transform line 1 to slope-intersect form
-%     [m_1, b_1] = slope_intersect_form( line_1 );
-%     
-%     % transform line 2 to slope-intersect form
-%     [m_2, b_2] = slope_intersect_form( line_2 );
-%     
-%     % determine if lines are parallel
-%     if ( m_1 == m_2 )
-%         intersect = false;
-%     else
-%         % x-coordinate of the intersection
-%         x = ( b_2 - b_1 ) ./ ( m_1 - m_2 );
-%         
-%         % x-coordinate is on the lines
-%         if ( ( x > line_1(1) ) && ( x < line_1(3) ) && ...
-%              ( x > line_2(1) ) && ( x < line_2(3) ) )
-%             intersect = true;
-%         else
-%             intersect = false;
-%         end
-%     end
-%     
-% end
+function [ S_out, E_dst_out ] = insert_edge(v, vi, edges_insrt, E_dst, S, vertices)
+%INSERT_EDGES Summary of this function goes here
+%   Detailed explanation goes here
 
-% function [m, b] = slope_intersect_form( line )
-% %SLOPE_INTERSECT_FORM Transforms a line having the starting and ending
-% %points to the slope-insersect form
-% %
-% %   - line: vector of size 1 x 4, in the way [x1 y1 x2 y2], where x1 and
-% %     y1 is the initial point of the line and x2 y2 the end point
-% 
-%     m = ( line(4) - line(2) )./ ( line(3) - line(1) );
-%     b = ( m .* -line(1) ) + line(2);
-% 
-% end
+    % number of edges to be inserted
+    N = size(edges_insrt,1);
+    
+    for i=1:N
+        
+        % the edge is not in S
+        if isempty( find(S(:) == edges_insrt(i) ) )
+        
+            % TODO: correct this distance
+        
+            % distance from the origin to the vertex of the edge
+            dst = norm((v(1:2) - vi(1:2)),2);
 
+            % TODO: fix this =, because is an special case
+            smaller_idx = E_dst(:) < dst;
+            bigger_idx = E_dst(:) > dst;
 
+            % insert edge into S
+            S_out = [S(smaller_idx'), edges_insrt(i), S(bigger_idx') ];
+            
+            % insert distance into E_dst
+            E_dst_out = [E_dst(smaller_idx'), dst, E_dst(bigger_idx')];
+        else
+            S_out = S;
+            E_dst_out = E_dst;
+        end
+            
+    end
+
+end
+
+function [ S_out, E_dst_out ] = delete_edge(edges_dlt, E, E_dst, S);
+%INSERT_EDGES Summary of this function goes here
+%   Detailed explanation goes here
+
+    % number of edges to be deleted
+    N = size(edges_dlt,1);
+    
+    S_size = size(S,2);
+    
+    for i=1:N
+        
+        % the edge is not in S
+        if ~( isempty( find(S(:) == edges_dlt(i)) ) )
+            
+            idx_S = find( S(:) == edges_dlt(i) );
+        
+            % insert edge into S
+            S_out = [S(1:idx_S - 1), S(idx_S + 1:S_size)];
+
+            % insert distance into E_dst
+            E_dst_out = [E_dst(1:idx_S - 1), E_dst(idx_S + 1:S_size)];
+        else
+            S_out = S;
+            E_dst_out = E_dst;
+        end
+       
+    end
+
+end
