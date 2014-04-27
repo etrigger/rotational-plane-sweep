@@ -16,15 +16,18 @@ function [ edges ] = RPS( vertices )
     % intitialise the output vector
     edges = [];
     
+    % index of the next edge to be inserted
+    edges_idx = 1;
+    
     % list of edges
     E = calculate_edges( vertices, N);
-
+    
     % plot the initial environment
     figure;
     plot_environmnet( E, vertices );
-
-    % index of the next edge to be inserted
-    edges_idx = 1;
+    
+    % test whether the environment has no obstacles
+    if( isempty(E) ); edges = [1,2]; plot_result( edges, vertices ); return; end;
     
     % Iterate through all the vertices to determine the visible vertices
     % from each vertex
@@ -47,49 +50,23 @@ function [ edges ] = RPS( vertices )
         % evaluate each vertex
         for j=1:N-1
             
-            % TODO: hacer esto más simple
+            % determine the index of the vertex in the initial array
+            if (A(j)<i); vertex_nr = A(j); else vertex_nr = A(j) + 1; end;
             
-            A(j)
+            % vertex whose visibility will be tested
+            vi = subset(A(j),:);
             
-            % define the number of the vertex
-            if A(j) < i
-                vertex_nr = A(j);
-            else
-                vertex_nr = A(j) + 1;
-            end
-            
-            sprintf('vertex # %d',(vertex_nr - 1))
-            
-            vi = subset(A(j),:)
-            
-            % check the visibility only if S is not empty
-            if ( ~isempty( S) )
-            
-                % test whether the vertex is visible
-                if is_visible(v, vi, S, E, vertices, E_dst)
-                    % add index of v and vi to the visibility graph
-
-                    disp('visible!')
-
-                    % add index to the visibility graph
-                    edges(edges_idx,:) = [i, vertex_nr];
-                    
-                    edges_idx = edges_idx + 1;
-                end
-            else
-                % add index to the visibility graph
-                edges(edges_idx,:) = [i, vertex_nr];
-
-                edges_idx = edges_idx + 1;
-            end
-                        
+            % add the edge to the visible list, in case is visible
+            [edges, edges_idx] = add_edge(S, v, vi, E, vertices, E_dst, ...
+                                          vertex_nr, edges_idx, edges, i);
+                                 
             % determine the edges indexes where vi is the start edge
             start_edge = find( E(:,1) == vertex_nr );
             
             % determine the edges indexes where vi is the end edge
             end_edge = find( E(:,2) == vertex_nr );
             
-            % find start and end edges
+            % find the edges that should be either deleted or inserted
             [insert_edges, delete_edges] = find_edges(v,vi,start_edge,end_edge,E,vertices);
             
             % if vi is in the begining of an edge that is not in S
@@ -103,34 +80,34 @@ function [ edges ] = RPS( vertices )
                 % delete the edge from S
                 [S, E_dst] = delete_edge(delete_edges, E, E_dst, S);
             end
+        end   
+    end
+    
+    % delete internal edges and add polygon lines
+    edges = clear_edges(edges, vertices, E);
+    
+    % plots the resulting edges
+    plot_result( edges, vertices );
+    
+end
 
-            S
-            
+function [edges, edges_idx] = add_edge(S, v, vi, E, vertices, E_dst, vertex_nr, edges_idx, edges, i)
+%UNTITLED5 Summary of this function goes here
+%   Detailed explanation goes here                                
+
+    if ( ~isempty( S) )
+    % test whether the vertex is visible
+        if is_visible(v, vi, S, E, vertices, E_dst)
+            % add indexes [v vi] to the visibility graph
+            edges(edges_idx,:) = [i, vertex_nr];                    
+            edges_idx = edges_idx + 1;
         end
-        
-                
+    else
+            % if S is empty, add index to the visibility graph
+            edges(edges_idx,:) = [i, vertex_nr];
+            edges_idx = edges_idx + 1;
     end
-    
-    idx = 1;
-    
-    % clean edges
-    for m=1:size(edges,1)
-        
-        if ( vertices( edges(idx,1),3 ) == vertices( edges(idx,2),3 ) )
-            edges(idx,:) = [];
-        else
-            idx = idx + 1;
-        end
-    end
-    
-    
-    for n=1:size(edges,1)
-        plot([vertices( edges(n,1), 1); vertices( edges(n,2), 1)],...
-             [vertices( edges(n,1), 2); vertices( edges(n,2), 2)],...
-             '-r');
-        hold on;
-    end
-    
+                                 
 end
 
 function [ insert_edges, delete_edges ] = find_edges( v, vi, start_idx, end_idx, E, vertices)
@@ -189,6 +166,8 @@ function [ E ] = calculate_edges( vertices, N )
 %   E: Array of size M x 2, where M is the number of edges. Each row
 %   represents one edge, having the start and the end vertices index of the
 %   array of vertices.
+
+    E =[];
 
     edge_idx = 1;
 
@@ -267,10 +246,6 @@ function [ S, sorted_E_dst ] = intersects_line( v, vertices, E )
     
     % horizontal half-line emanating from v
     line_v = [v(1) v(2) vertices(max_idx,1) v(2)];
-    
-    % plot horizontal line
-    plot( [v(1) vertices(max_idx,1)], [v(2) v(2)],'--m','MarkerFaceColor',[1,0,0]);
-    hold on;
     
     % index of the S array
     s_idx = 1;
@@ -508,15 +483,36 @@ function [ S_out, E_dst_out ] = delete_edge(edges_dlt, E, E_dst, S);
 
 end
 
+function [edges] = clear_edges(edges, vertices, E)
+%UNTITLED6 Summary of this function goes here
+%   Detailed explanation goes here
+
+    edge_idx = 1;
+    
+    % delete edges that belongs to the same polygon
+    for i=1:size(edges,1)
+        if ( vertices( edges(edge_idx,1),3 ) == vertices( edges(edge_idx,2),3 ) )
+            edges(edge_idx,:) = [];
+        else
+            edge_idx = edge_idx + 1;
+        end
+    end
+    
+    edges = [edges; E];
+
+end
+
 function plot_environmnet( E, vertices )
 %UNTITLED6 Summary of this function goes here
 %   Detailed explanation goes here
 
     % start 
-    plot( vertices(1,1), vertices(1,2), 'ro', 'MarkerFaceColor',[1,0,0] );
+    plot( vertices(1,1), vertices(1,2), 'ro', 'MarkerFaceColor',[1,0,0], ...
+          'MarkerSize', 8 );
     hold on;
     % goal
-    plot( vertices(end,1), vertices(end,2), 'go', 'MarkerFaceColor',[0,1,0] );
+    plot( vertices(end,1), vertices(end,2), 'go', 'MarkerFaceColor',[0,1,0], ...
+          'MarkerSize', 8 );
     hold on;
     
     % Plot the edges
@@ -527,6 +523,19 @@ function plot_environmnet( E, vertices )
         hold on;
         plot([vertices( E(i,1), 1); vertices( E(i,2), 1)],...
              [vertices( E(i,1), 2); vertices( E(i,2), 2)]);
+        hold on;
+    end
+    
+end
+
+function plot_result( edges, vertices )
+%UNTITLED6 Summary of this function goes here
+%   Detailed explanation goes here
+
+    for n=1:size(edges,1)
+        plot([vertices( edges(n,1), 1); vertices( edges(n,2), 1)],...
+             [vertices( edges(n,1), 2); vertices( edges(n,2), 2)],...
+             '-r');
         hold on;
     end
     
