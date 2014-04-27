@@ -1,6 +1,6 @@
 function [ vertices ] = environment( )
-%ENVIRONMENT Summary of this function goes here
-%   Detailed explanation goes here
+%ENVIRONMENT Construct an environment based on the input provided by the
+%user. The number of 
 
     vertices = zeros(10,3);
 

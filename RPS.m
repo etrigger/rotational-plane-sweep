@@ -88,6 +88,8 @@ function [ edges ] = RPS( vertices )
     
     % plots the resulting edges
     plot_result( edges, vertices );
+    % paint in blue the polygons
+    plot_environmnet( E, vertices );
     
 end
 
@@ -167,12 +169,13 @@ function [ E ] = calculate_edges( vertices, N )
 %   represents one edge, having the start and the end vertices index of the
 %   array of vertices.
 
+    % initialization of the variables
     E =[];
-
     edge_idx = 1;
 
     for i=2:N-1
         
+        % number of the current polygon
         object_nr = vertices(i,3);
         
         % check previous vertex to find the initial vertex of the object
@@ -216,14 +219,14 @@ function [ A ] = calculate_alpha( v, vertices )
         x = vertices(i,1) - v(1);
         y = vertices(i,2) - v(2);
         % computes the angle in the interval [-pi,pi]
-        alpha(i,1) = atan2( y, x ) ;
+        alpha(i,1) = atan2( y, x );
     end
     
     % converts angle to interval [0, 2*pi]
     alpha = mod(alpha,2*pi);
     
     % sort the elements of alpha
-    [sorted_alpha, A] = sort(alpha(:),'ascend')
+    [sorted_alpha, A] = sort(alpha(:),'ascend');
     
     % transpose A, so it has size 1 x N
     A = A';
@@ -233,15 +236,15 @@ end
 function [ S, sorted_E_dst ] = intersects_line( v, vertices, E )
 %INTERSECTS_LINE Select the edges that intersects the horizontal half-line
 %emanating from v
-%
-%   Detailed explanation goes here
 
+    % initialisation of the vectors
     E_dst = [];
     S = [];
 
     % number of edges
     N = size(E,1);
 
+    % maximum x-coordinate
     [~, max_idx] = max(vertices(:,1));
     
     % horizontal half-line emanating from v
@@ -266,7 +269,7 @@ function [ S, sorted_E_dst ] = intersects_line( v, vertices, E )
             % determine if the lines are different segments of the same
             % line. If this is the case, the edge is not occluding any
             % line, so it is not included on the S list
-            if abs( line_v - line ) > 0.00001
+            if abs( homogeneous_coordinates(line_v) - homogeneous_coordinates(line) ) > 0.00001
                 % add edge index to the list
                 S(s_idx) = i;
                 % assign the distance
@@ -280,7 +283,6 @@ function [ S, sorted_E_dst ] = intersects_line( v, vertices, E )
 
     % sort the elements of E_dst and return the indexes
     [sorted_E_dst, sorted_idx] = sort(E_dst(:),'ascend');
-
     sorted_E_dst = sorted_E_dst';
 
     % sort S according to the sorted indexes
@@ -325,9 +327,7 @@ function [ intersect, dst ] = is_intersected(line_1, line_2, E, vertices)
         %occlusion
         if ( is_an_edge( intersect_pt, E, vertices, line_1) || ...
              is_an_edge( intersect_pt, E, vertices, line_2)  )
-            
             intersect = false;
-            
         else
             % x-coordinate is on the lines
             if ( ( x >= x_line_1(1) ) && ( x <= x_line_1(2) ) && ...
@@ -499,6 +499,7 @@ function [edges] = clear_edges(edges, vertices, E)
     end
     
     edges = [edges; E];
+    edges = sortrows(edges);
 
 end
 
@@ -539,4 +540,31 @@ function plot_result( edges, vertices )
         hold on;
     end
     
+end
+
+function [ vertices ] = environment( )
+%ENVIRONMENT Construct an environment based on the input provided by the
+%user. The number polygons constructed must have four sides, and any number
+%of them could be built.
+%
+%   - vertices: array [x y n], where x and y represents the coordinate of
+%   the point and n is the number of the polygon to which it belongs.
+
+    vertices = zeros(10,3);
+
+    [x,y] = ginput(10);
+
+    vertices(1,:) = [x(1) y(1) 0];
+    vertices(2:5,:) = [x(2:5) y(2:5) ones(4,1)];
+    vertices(6:9,:) = [x(6:9) y(6:9) (ones(4,1).*2)];
+    vertices(10,:) = [x(10) y(10) 3];
+
+    plot( x(1), y(1), 'bo' )
+    hold on;
+    plot([x(2:5); x(2)],[y(2:5); y(2)]);
+    hold on;
+    plot([x(6:9); x(6)],[y(6:9); y(6)]);
+    hold on;
+    plot(x(10),y(10), 'ro');
+
 end
