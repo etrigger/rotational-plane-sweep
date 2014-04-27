@@ -94,8 +94,8 @@ function [ edges ] = RPS( vertices )
 end
 
 function [edges, edges_idx] = add_edge(S, v, vi, E, vertices, E_dst, vertex_nr, edges_idx, edges, i)
-%UNTITLED5 Summary of this function goes here
-%   Detailed explanation goes here                                
+%ADD_EDGE Add visible edges to the vector edges and update the value of the
+%index
 
     if ( ~isempty( S) )
     % test whether the vertex is visible
@@ -113,11 +113,10 @@ function [edges, edges_idx] = add_edge(S, v, vi, E, vertices, E_dst, vertex_nr, 
 end
 
 function [ insert_edges, delete_edges ] = find_edges( v, vi, start_idx, end_idx, E, vertices)
-%UNTITLED5 Summary of this function goes here
-%   Detailed explanation goes here
+%FIND_EDGES Determines the initial and the end edges
 
-    insert_edges = []
-    delete_edges = []
+    insert_edges = [];
+    delete_edges = [];
 
     proj_start = 0;
     proj_end = 0;
@@ -148,8 +147,6 @@ function [ insert_edges, delete_edges ] = find_edges( v, vi, start_idx, end_idx,
         delete_idx = delete_idx + 1;
     end
     
-    
-    %TODO: organize this!
     if( proj_end > 0  )
         insert_edges( insert_idx ) = end_idx;   
         insert_idx = insert_idx + 1;
@@ -345,8 +342,11 @@ function [ intersect, dst ] = is_intersected(line_1, line_2, E, vertices)
 end
 
 function [ edge ] = is_an_edge( intersect_pt, E, vertices, line )
-%UNTITLED3 Summary of this function goes here
-%   Detailed explanation goes here
+%IS_AN_EDGE Determines whether the point defined by intersect_pt lies in
+%one of the vertex of and edge.
+%
+% The difference between both coordinates is computed and evaluated agains
+% a threshold.
 
      diff_x_line_1 = abs( intersect_pt(1) - line(1) );
      diff_y_line_1 = abs( intersect_pt(2) - line(2) );
@@ -377,8 +377,7 @@ function [hmg] = homogeneous_coordinates( line )
 end
 
 function [ visible ] = is_visible(v, vi, S, E, vertices, E_dst)
-%IS_VISIBLE Summary of this function goes here
-%   Detailed explanation goes here
+%IS_VISIBLE Determines whether a vertex is visible or not
 
     % distance from v to vi
     dst = norm((v(1:2) - vi(1:2)),2);
